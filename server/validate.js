@@ -144,12 +144,14 @@ function checkSessionDrift(p, prevSnapshot, hit) {
 }
 
 function sessionSnapshot(p) {
-  const c = p.canvas || {}, g = p.gpu || {}, t = (p.performance && p.performance.timing) || {};
+  // 仅纳入跨页面/刷新都应恒定的硬件字段。
+  // 注意: performance.timing.navigationStart 每次整页加载都会变，
+  // 不能放进会话快照，否则同一用户刷新页面会被误判为突变。
+  const c = p.canvas || {}, g = p.gpu || {};
   return {
     canvasHash: c.hash,
     gpuModel: g.model,
     screenInfo: p.screenInfo,
-    navigationStart: t.navigationStart,
   };
 }
 

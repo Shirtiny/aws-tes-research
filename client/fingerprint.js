@@ -44,30 +44,72 @@
   }
 
   // ── 硬件层: canvas hash + histogram，由同一次渲染派生（确定性绑定）──
+  // 渲染序列与 canvas_reference.html 完全一致，保证采集器产出的基线
+  // 与线上上报的 hash/histogram 可直接对接（见 CANVAS_COLLECTOR.md）。
   function canvasFingerprint() {
     const c = document.createElement('canvas');
     c.width = 150; c.height = 60;
-    const ctx = c.getContext('2d');
-    ctx.textBaseline = 'top';
-    ctx.font = '11pt Arial';
-    ctx.fillStyle = '#f60';
-    ctx.fillRect(95, 1, 62, 30);
-    ctx.fillStyle = '#069';
-    ctx.fillText('Cwm fjordbank glyphs vext quiz,', 2, 15);
-    ctx.fillStyle = 'rgba(102,204,0,0.7)';
-    ctx.fillText('Cwm fjordbank glyphs vext quiz,', 4, 17);
-    ctx.globalCompositeOperation = 'multiply';
-    [['#f0f', 40, 40], ['#0ff', 80, 40], ['#ff0', 60, 80]].forEach(([color, x, y]) => {
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(x, y, 40, 0, Math.PI * 2, true);
-      ctx.closePath();
-      ctx.fill();
-    });
-    const data = ctx.getImageData(0, 0, c.width, c.height).data;
+    const t = c.getContext('2d');
+    t.rect(0, 0, 10, 10);
+    t.rect(2, 2, 20, 20);
+    t.textBaseline = 'alphabetic';
+    t.fillStyle = '#f60';
+    t.fillRect(95, 1, 62, 30);
+    t.fillStyle = '#069';
+    t.font = '8pt Arial';
+    t.fillText('Cwm fjordbank glyphs vext quiz,', 2, 15);
+    t.fillStyle = 'rgba(102, 204, 0, 0.2)';
+    t.font = '11pt Arial';
+    t.fillText('Cwm fjordbank glyphs vext quiz,', 4, 45);
+    t.globalCompositeOperation = 'multiply';
+    t.fillStyle = 'rgb(255,0,255)';
+    t.beginPath(); t.arc(30, 30, 30, 0, 2 * Math.PI, true); t.closePath(); t.fill();
+    t.fillStyle = 'rgb(0,255,255)';
+    t.beginPath(); t.arc(50, 30, 30, 0, 2 * Math.PI, true); t.closePath(); t.fill();
+    t.fillStyle = 'rgb(255,255,0)';
+    t.beginPath(); t.arc(35, 40, 30, 0, 2 * Math.PI, true); t.closePath(); t.fill();
+    t.fillStyle = 'rgb(255,0,255)';
+    t.arc(30, 25, 10, 0, 2 * Math.PI, true);
+    t.arc(30, 25, 30, 0, 2 * Math.PI, true);
+    t.fill('evenodd');
+    const g = t.createLinearGradient(40, 50, 60, 62);
+    g.addColorStop(0, 'blue');
+    try { g.addColorStop(0.5, '78'); } catch (e) { g.addColorStop(0.5, '#808080'); }
+    g.addColorStop(1, 'white');
+    t.fillStyle = g;
+    t.beginPath(); t.arc(70, 50, 10, 0, 2 * Math.PI, true); t.closePath(); t.fill();
+    t.font = '10pt dfgstg';
+    t.strokeText(Math.tan(-1e300).toString(), 4, 30);
+    t.fillText(Math.cos(-1e300).toString(), 4, 40);
+    t.fillText(Math.sin(-1e300).toString(), 4, 50);
+    t.beginPath();
+    t.moveTo(25, 0);
+    t.quadraticCurveTo(1, 1, 1, 5);
+    t.quadraticCurveTo(1, 76, 26, 10);
+    t.quadraticCurveTo(26, 96, 6, 12);
+    t.quadraticCurveTo(60, 96, 41, 10);
+    t.quadraticCurveTo(121, 86, 101, 7);
+    t.quadraticCurveTo(121, 1, 56, 1);
+    t.stroke();
+    t.globalCompositeOperation = 'difference';
+    t.fillStyle = 'rgb(255,0,255)';
+    t.beginPath(); t.arc(80, 30, 30, 0, 2 * Math.PI, true); t.closePath(); t.fill();
+    t.fillStyle = 'rgb(0,255,255)';
+    t.beginPath(); t.arc(110, 30, 30, 0, 2 * Math.PI, true); t.closePath(); t.fill();
+    t.fillStyle = 'rgb(255,255,0)';
+    t.beginPath(); t.arc(95, 40, 30, 0, 2 * Math.PI, true); t.closePath(); t.fill();
+    t.fillStyle = 'rgb(255,0,255)';
+
+    // histogram: 渲染输出像素 RGBA 通道频率分布（256 桶，求和恒为 150×60×4）
+    const data = t.getImageData(0, 0, c.width, c.height).data;
     const hist = new Array(256).fill(0);
     for (let i = 0; i < data.length; i++) hist[data[i]]++;
-    return { hash: crc32(c.toDataURL()) | 0, histogramBins: hist };
+    // canvas_hash = CRC32(isPointInPath 结果 + "~canvas fp:" + toDataURL())
+    const tc = document.createElement('canvas').getContext('2d');
+    tc.rect(0, 0, 10, 10); tc.rect(2, 2, 20, 20);
+    const e = [0 == tc.isPointInPath(5, 5, 'evenodd') ? 'yes' : 'no',
+               'canvas fp:' + c.toDataURL()];
+    return { hash: crc32(e.join('~')) | 0, histogramBins: hist };
   }
 
   function gpuInfo() {
