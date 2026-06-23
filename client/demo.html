@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TES 指纹检测 Demo</title>
+  <style>
+    body { font: 14px/1.6 -apple-system, "Segoe UI", sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #222; }
+    h1 { font-size: 20px; } h2 { font-size: 15px; margin-top: 24px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0; }
+    button { padding: 8px 16px; border: 1px solid #ccc; border-radius: 6px; background: #fff; cursor: pointer; }
+    button:hover { background: #f5f5f5; }
+    input { padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+    pre { background: #f7f7f8; border-radius: 8px; padding: 14px; overflow: auto; font-size: 12px; }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; color: #fff; font-weight: 600; }
+    .low { background: #2e9b51; } .mid { background: #e0950a; } .high { background: #d23a3a; }
+    .reason { padding: 6px 10px; margin: 4px 0; border-left: 3px solid #d23a3a; background: #fdf2f2; border-radius: 4px; font-size: 13px; }
+    .reason .cat { color: #888; font-size: 11px; text-transform: uppercase; }
+    .hint { color: #888; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>TES 指纹检测 Demo</h1>
+  <p class="hint">采集浏览器环境特征 → 上报服务端 → 返回风险评估。本机正常浏览器应得 low；用 headless/自动化工具访问会命中自动化痕迹。</p>
+
+  <h2>模拟一次登录/注册提交</h2>
+  <div class="row">
+    <input id="account" placeholder="账号（如邮箱）" value="user@example.com">
+    <button id="btn-load">采集 PageLoad</button>
+    <button id="btn-submit">采集 Submit（先在页面点几下/打几个字）</button>
+  </div>
+
+  <h2 id="result-title" style="display:none">检测结果</h2>
+  <div id="result"></div>
+
+  <h2>上报的指纹 payload</h2>
+  <pre id="payload">（尚未采集）</pre>
+
+  <script src="/fingerprint.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    async function report(eventType) {
+      const fp = TESFingerprint.collect(eventType);
+      fp.accountId = $('account').value.trim() || null;
+      $('payload').textContent = JSON.stringify(fp, null, 2);
+
+      const res = await fetch('/collect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fp),
+      });
+      const r = await res.json();
+      renderResult(r);
+    }
+
+    function renderResult(r) {
+      $('result-title').style.display = 'block';
+      const reasons = r.reasons.length
+        ? r.reasons.map(x => `<div class="reason"><span class="cat">${x.category} +${x.weight}</span><br>${x.msg}</div>`).join('')
+        : '<p class="hint">无命中，环境正常。</p>';
+      $('result').innerHTML =
+        `<p>风险等级: <span class="badge ${r.riskLevel}">${r.riskLevel.toUpperCase()}</span>　风险分: <b>${r.score}/100</b></p>${reasons}`;
+    }
+
+    $('btn-load').onclick = () => report('PageLoad');
+    $('btn-submit').onclick = () => report('Submit');
+  </script>
+</body>
+</html>

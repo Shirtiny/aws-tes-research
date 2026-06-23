@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Canvas 指纹参考采集器</title>
+<style>
+body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; padding: 20px; max-width: 900px; margin: 0 auto; }
+h1 { color: #00d4ff; } h3 { color: #00d4ff; margin-top: 24px; }
+canvas { border: 1px solid #444; margin: 10px 0; display: block; }
+button { background: #00d4ff; color: #000; border: none; padding: 10px 20px; cursor: pointer; font-size: 14px; margin: 5px; border-radius: 4px; }
+button:hover { background: #00b0d4; }
+textarea { width: 100%; height: 220px; background: #0d1117; color: #58a6ff; border: 1px solid #333; font-family: monospace; font-size: 12px; padding: 8px; }
+.info { color: #8b949e; margin: 4px 0; } .ok { color: #3fb950; } .warn { color: #d29922; }
+</style>
+</head>
+<body>
+<h1>Canvas 指纹参考采集器</h1>
+<p class="info">复现确定性 canvas 渲染流程，计算其 canvas_hash 与 histogramBins。</p>
+<p class="info">用途：为检测引擎建立「已知真机」参考基线，验证 hash ↔ histogram 的绑定一致性（见 PRINCIPLE.md §2）。</p>
+
+<h3>Canvas 渲染结果 (150×60)</h3>
+<canvas id="fpCanvas"></canvas>
+<div id="results"></div>
+
+<button onclick="collectAndShow()">采集一次</button>
+<button onclick="collectMultiple(5)">采集 5 次（验证确定性）</button>
+<button onclick="copyResult()">复制结果</button>
+
+<h3>检测基线条目 (JSON)</h3>
+<textarea id="output" readonly></textarea>
+
+<script>
+const CANVAS_WIDTH = 150;
+const CANVAS_HEIGHT = 60;
+
+// 确定性 canvas 渲染：相同 GPU/驱动/系统/浏览器版本下结果完全一致。
+// 同一次渲染输出同时派生 canvas_hash 与 histogram，二者存在确定性绑定。
+function renderCanvas(canvas) {
+    canvas.width = CANVAS_WIDTH;
+    canvas.height = CANVAS_HEIGHT;
+    const t = canvas.getContext("2d");
+    if (!t) return null;
+
+    t.rect(0, 0, 10, 10);
+    t.rect(2, 2, 20, 20);
+    t.textBaseline = "alphabetic";
+    t.fillStyle = "#f60";
+    t.fillRect(95, 1, 62, 30);
+    t.fillStyle = "#069";
+    t.font = "8pt Arial";
+    t.fillText("Cwm fjordbank glyphs vext quiz,", 2, 15);
+    t.fillStyle = "rgba(102, 204, 0, 0.2)";
+    t.font = "11pt Arial";
+    t.fillText("Cwm fjordbank glyphs vext quiz,", 4, 45);
+
+    t.globalCompositeOperation = "multiply";
+    t.fillStyle = "rgb(255,0,255)";
+    t.beginPath(); t.arc(30, 30, 30, 0, 2 * Math.PI, true); t.closePath(); t.fill();
+    t.fillStyle = "rgb(0,255,255)";
+    t.beginPath(); t.arc(50, 30, 30, 0, 2 * Math.PI, true); t.closePath(); t.fill();
+    t.fillStyle = "rgb(255,255,0)";
+    t.beginPath(); t.arc(35, 40, 30, 0, 2 * Math.PI, true); t.closePath(); t.fill();
+    t.fillStyle = "rgb(255,0,255)";
+    t.arc(30, 25, 10, 0, 2 * Math.PI, true);
+    t.arc(30, 25, 30, 0, 2 * Math.PI, true);
+    t.fill("evenodd");
+
+    const a = t.createLinearGradient(40, 50, 60, 62);
+    a.addColorStop(0, "blue");
+    try { a.addColorStop(0.5, "78"); } catch (e) { a.addColorStop(0.5, "#808080"); }
+    a.addColorStop(1, "white");
+    t.fillStyle = a;
+    t.beginPath(); t.arc(70, 50, 10, 0, 2 * Math.PI, true); t.closePath(); t.fill();
+
+    t.font = "10pt dfgstg";
+    t.strokeText(Math.tan(-1e300).toString(), 4, 30);
+    t.fillText(Math.cos(-1e300).toString(), 4, 40);
+    t.fillText(Math.sin(-1e300).toString(), 4, 50);
+
+    t.beginPath();
+    t.moveTo(25, 0);
+    t.quadraticCurveTo(1, 1, 1, 5);
+    t.quadraticCurveTo(1, 76, 26, 10);
+    t.quadraticCurveTo(26, 96, 6, 12);
+    t.quadraticCurveTo(60, 96, 41, 10);
+    t.quadraticCurveTo(121, 86, 101, 7);
+    t.quadraticCurveTo(121, 1, 56, 1);
+    t.stroke();
+
+    t.globalCompositeOperation = "difference";
+    t.fillStyle = "rgb(255,0,255)";
+    t.beginPath(); t.arc(80, 30, 30, 0, 2 * Math.PI, true); t.closePath(); t.fill();
+    t.fillStyle = "rgb(0,255,255)";
+    t.beginPath(); t.arc(110, 30, 30, 0, 2 * Math.PI, true); t.closePath(); t.fill();
+    t.fillStyle = "rgb(255,255,0)";
+    t.beginPath(); t.arc(95, 40, 30, 0, 2 * Math.PI, true); t.closePath(); t.fill();
+    t.fillStyle = "rgb(255,0,255)";
+
+    return t;
+}
+// FUNC_PLACEHOLDER
+
+function createHistogram(imageData) {
+    // 统计每个 RGBA 通道字节值 (0-255) 的出现频率，固定 256 桶。
+    const data = imageData.data;
+    const n = new Array(256).fill(0);
+    for (let i = 0; i < data.length; i++) n[data[i]]++;
+    return n;
+}
+
+// CRC32 (IEEE)，结果为 signed int32，与浏览器端实现一致。
+function crc32(str) {
+    let table = [];
+    for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        table[n] = c;
+    }
+    let crc = 0 ^ 0xFFFFFFFF;
+    for (let i = 0; i < str.length; i++)
+        crc = table[(crc ^ str.charCodeAt(i)) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) | 0;
+}
+
+function compute(canvas) {
+    const t = renderCanvas(canvas);
+    if (!t) return null;
+    // canvas_hash = CRC32(isPointInPath 结果 + "~canvas fp:" + toDataURL())
+    const tc = document.createElement("canvas").getContext("2d");
+    tc.rect(0, 0, 10, 10); tc.rect(2, 2, 20, 20);
+    const e = [0 == tc.isPointInPath(5, 5, "evenodd") ? "yes" : "no",
+               "canvas fp:" + canvas.toDataURL()];
+    const canvasHash = crc32(e.join("~"));
+    const histogram = createHistogram(t.getImageData(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT));
+    return { canvasHash, histogram, isPointInPath: e[0] };
+}
+
+function collectAndShow() {
+    const canvas = document.getElementById("fpCanvas");
+    const r = compute(canvas);
+    if (!r) {
+        document.getElementById("results").innerHTML = '<p class="warn">Canvas 不可用</p>';
+        return null;
+    }
+    const total = r.histogram.reduce((a, b) => a + b, 0);
+    const nonZero = r.histogram.filter(x => x > 0).length;
+    const maxBin = Math.max(...r.histogram);
+    document.getElementById("results").innerHTML = `
+        <p class="ok">✓ 采集成功</p>
+        <p class="info"><b>canvas_hash = ${r.canvasHash}</b> (signed int32)</p>
+        <p class="info">isPointInPath = ${r.isPointInPath}</p>
+        <p class="info">像素采样总数: ${total} (${CANVAS_WIDTH}×${CANVAS_HEIGHT}×4 = ${CANVAS_WIDTH * CANVAS_HEIGHT * 4})</p>
+        <p class="info">非零桶: ${nonZero}/256，最大桶值: ${maxBin}</p>
+        <p class="info">histogram[0]=${r.histogram[0]}，histogram[255]=${r.histogram[255]}</p>`;
+    document.getElementById("output").value = formatBaseline(r.canvasHash, r.histogram);
+    return r;
+}
+
+function collectMultiple(count) {
+    const runs = [];
+    for (let i = 0; i < count; i++)
+        runs.push(compute(document.createElement("canvas")).histogram);
+    let allSame = true;
+    for (let i = 1; i < runs.length && allSame; i++)
+        for (let j = 0; j < 256; j++)
+            if (runs[i][j] !== runs[0][j]) { allSame = false; break; }
+    document.getElementById("results").innerHTML += `
+        <p class="${allSame ? 'ok' : 'warn'}">${allSame ? '✓' : '⚠'} ${count} 次采集${allSame ? '完全一致（确定性已验证）' : '结果不一致，可能存在扩展干扰'}</p>`;
+}
+
+// 输出为检测基线条目，可录入 server 端「已知真机」参考表。
+function formatBaseline(hash, histogram) {
+    return JSON.stringify({
+        canvasHash: hash,
+        histogramBins: histogram,
+        ua: navigator.userAgent,
+        note: "已知真机参考基线"
+    }, null, 2);
+}
+
+function copyResult() {
+    const output = document.getElementById("output");
+    output.select();
+    document.execCommand("copy");
+    alert("已复制到剪贴板");
+}
+
+window.onload = collectAndShow;
+

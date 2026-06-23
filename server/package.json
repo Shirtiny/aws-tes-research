@@ -1,0 +1,13 @@
+{
+  "name": "tes-fingerprint-detection",
+  "version": "1.0.0",
+  "description": "浏览器指纹检测系统 — TES 检测原理移植，用于自有网站风控",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
