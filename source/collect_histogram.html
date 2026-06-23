@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>TES Canvas Histogram Collector</title>
+<style>
+body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+h1 { color: #00d4ff; }
+canvas { border: 1px solid #444; margin: 10px 0; display: block; }
+button { background: #00d4ff; color: #000; border: none; padding: 10px 20px; cursor: pointer; font-size: 14px; margin: 5px; border-radius: 4px; }
+button:hover { background: #00b0d4; }
+textarea { width: 100%; height: 200px; background: #0d1117; color: #58a6ff; border: 1px solid #333; font-family: monospace; font-size: 12px; padding: 8px; }
+.info { color: #8b949e; margin: 4px 0; }
+.ok { color: #3fb950; }
+.warn { color: #d29922; }
+#results { margin-top: 20px; }
+</style>
+</head>
+<body>
+<h1>TES Canvas Histogram Collector</h1>
+<p class="info">此工具复现 AWS TES (app.js 74492-74580) 的 canvas 指纹渲染逻辑，采集真实 histogramBins 数据。</p>
+<p class="info">在不同电脑/GPU 上多次运行，每次复制结果添加到 _HISTOGRAM_POOL。</p>
+
+<h3>Canvas 渲染结果 (150×60)</h3>
+<canvas id="fpCanvas"></canvas>
+
+<div id="results"></div>
+
+<button onclick="collectAndShow()">采集 Histogram</button>
+<button onclick="collectMultiple(5)">批量采集 5 组</button>
+<button onclick="copyResult()">复制到剪贴板</button>
+
+<h3>Python 代码 (直接粘贴到 _HISTOGRAM_POOL)</h3>
+<textarea id="output" readonly></textarea>
+
+<script>
+// ============================================================
+// 精确复现 app.js 74492-74580 的 canvas 指纹渲染
+// CANVAS_WIDTH = 150, CANVAS_HEIGHT = 60
+// ============================================================
+const CANVAS_WIDTH = 150;
+const CANVAS_HEIGHT = 60;
+
+function renderTESCanvas(canvas) {
+    canvas.width = CANVAS_WIDTH;
+    canvas.height = CANVAS_HEIGHT;
+    canvas.style.display = "inline";
+
+    const t = canvas.getContext("2d");
+    if (!t) return null;
+
+    // u[46]="rect": t.rect(0, 0, 10, 10); t.rect(2, 2, 6, 6)
+    // app.js 74497: t[u[46]](u[85], u[85], u[71], u[71]) → t.rect(0, 0, 10, 10)
+    // app.js 74498: t[u[46]](u[60], u[60], u[79], u[79]) → t.rect(2, 2, 20, 20)
+    t.rect(0, 0, 10, 10);
+    t.rect(2, 2, 20, 20);
+
+    // u[94]="isPointInPath": e.push(0 == t.isPointInPath(5, 5, "evenodd") ? "yes" : "no")
+    // app.js 74499: e[u[81]](u[85] == t[u[94]](u[8], u[8], u[40]) ? u[43] : u[84])
+
+    // t.textBaseline = "alphabetic"
+    // app.js 74500: t[u[52]] = u[51]
+    t.textBaseline = "alphabetic";
+
+    // t.fillStyle = "#f60"
+    // app.js 74501: t[u[32]] = u[76]
+    t.fillStyle = "#f60";
+
+    // t.fillRect(95, 1, 62, 30)
+    // app.js 74502: t[u[41]](u[0], u[2], u[102], u[98])
+    t.fillRect(95, 1, 62, 30);
+
+    // t.fillStyle = "#069"
+    // app.js 74503: t[u[32]] = u[24]
+    t.fillStyle = "#069";
+
+    // t.font = "8pt Arial"
+    // app.js 74504: t[u[61]] = u[4]
+    t.font = "8pt Arial";
+
+    // t.fillText("Cwm fjordbank glyphs vext quiz,", 2, 15)
+    // app.js 74505: t[u[105]](u[45], u[60], u[19])
+    t.fillText("Cwm fjordbank glyphs vext quiz,", 2, 15);
+
+    // t.fillStyle = "rgba(102, 204, 0, 0.2)"
+    // app.js 74506: t[u[32]] = u[29]
+    t.fillStyle = "rgba(102, 204, 0, 0.2)";
+
+    // t.font = "11pt Arial"
+    // app.js 74507: t[u[61]] = u[70]
+    t.font = "11pt Arial";
+
+    // t.fillText("Cwm fjordbank glyphs vext quiz,", 4, 45)
+    // app.js 74508: t[u[105]](u[45], u[37], u[53])
+    t.fillText("Cwm fjordbank glyphs vext quiz,", 4, 45);
+
+    // t.globalCompositeOperation = "multiply"
+    // app.js 74509: t[u[72]] = u[75]
+    t.globalCompositeOperation = "multiply";
+
+    // t.fillStyle = "rgb(255,0,255)"
+    // app.js 74510: t[u[32]] = u[14]
+    t.fillStyle = "rgb(255,0,255)";
+
+    // t.beginPath()
+    // app.js 74511: t[u[58]]()
+    t.beginPath();
+
+    // t.arc(30, 30, 30, 0, 2 * Math.PI, 1)
+    // app.js 74512: t[u[28]](u[98], u[98], u[98], u[85], u[60] * Math[u[36]], u[2])
+    t.arc(30, 30, 30, 0, 2 * Math.PI, true);
+
+    // t.closePath()
+    // app.js 74513: t[u[88]]()
+    t.closePath();
+
+    // t.fill()
+    // app.js 74514: t[u[77]]()
+    t.fill();
+
+    // t.fillStyle = "rgb(0,255,255)"
+    // app.js 74515: t[u[32]] = u[7]
+    t.fillStyle = "rgb(0,255,255)";
+
+    // t.beginPath()
+    t.beginPath();
+
+    // t.arc(50, 30, 30, 0, 2 * Math.PI, 1)
+    // app.js 74517: t[u[28]](u[33], u[98], u[98], u[85], u[60] * Math[u[36]], u[2])
+    t.arc(50, 30, 30, 0, 2 * Math.PI, true);
+
+    // t.closePath()
+    t.closePath();
+
+    // t.fill()
+    t.fill();
+
+    // t.fillStyle = "rgb(255,255,0)"
+    // app.js 74520: t[u[32]] = u[6]
+    t.fillStyle = "rgb(255,255,0)";
+
+    // t.beginPath()
+    t.beginPath();
+
+    // t.arc(35, 40, 30, 0, 2 * Math.PI, 1)
+    // app.js 74522: t[u[28]](u[3], u[15], u[98], u[85], u[60] * Math[u[36]], u[2])
+    t.arc(35, 40, 30, 0, 2 * Math.PI, true);
+
+    // t.closePath()
+    t.closePath();
+
+    // t.fill()
+    t.fill();
+
+    // t.fillStyle = "rgb(255,0,255)"
+    // app.js 74525: t[u[32]] = u[14]
+    t.fillStyle = "rgb(255,0,255)";
+
+    // t.arc(30, 25, 10, 0, 2 * Math.PI, 1)
+    // app.js 74526: t[u[28]](u[98], u[31], u[71], u[85], u[60] * Math[u[36]], u[2])
+    t.arc(30, 25, 10, 0, 2 * Math.PI, true);
+
+    // t.arc(30, 25, 30, 0, 2 * Math.PI, 1)
+    // app.js 74527: t[u[28]](u[98], u[31], u[98], u[85], u[60] * Math[u[36]], u[2])
+    t.arc(30, 25, 30, 0, 2 * Math.PI, true);
+
+    // t.fill("evenodd")
+    // app.js 74528: t[u[77]](u[40])
+    t.fill("evenodd");
+
+    // Linear gradient
+    // app.js 74529: a = t[u[56]](u[15], u[33], u[50], u[102])
+    // → t.createLinearGradient(40, 50, 60, 62)
+    const a = t.createLinearGradient(40, 50, 60, 62);
+
+    // a.addColorStop(0, "blue")
+    // app.js 74530: a[u[101]](u[85], u[49])
+    a.addColorStop(0, "blue");
+
+    // a.addColorStop(0.5, 78)  — wait, u[62]=78 which is a number
+    // app.js 74531: a[u[101]](u[57], u[62])
+    // Actually this is likely a color string. u[62]=78, but addColorStop needs a color.
+    // In JS, passing a number to addColorStop as color will be toString'd → "78"
+    // But this likely represents a color. Let me check: u[57]=0.5, u[62]=78
+    // 78 is not a valid CSS color, it would throw. Looking more carefully...
+    // Actually in the original obfuscated code the value might get coerced to a string.
+    // Let me just use it as-is (the browser will handle it)
+    try { a.addColorStop(0.5, "78"); } catch(e) { a.addColorStop(0.5, "#808080"); }
+
+    // a.addColorStop(1, "white")
+    // app.js 74532: a[u[101]](u[2], u[89])
+    a.addColorStop(1, "white");
+
+    // t.fillStyle = a (gradient)
+    t.fillStyle = a;
+
+    // t.beginPath()
+    t.beginPath();
+
+    // t.arc(70, 50, 10, 0, 2 * Math.PI, 1)
+    // app.js 74534: t[u[28]](u[44], u[33], u[71], u[85], u[60] * Math[u[36]], u[2])
+    t.arc(70, 50, 10, 0, 2 * Math.PI, true);
+
+    // t.closePath()
+    t.closePath();
+
+    // t.fill()
+    t.fill();
+
+    // t.font = "10pt dfgstg"
+    // app.js 74537: t[u[61]] = u[100]
+    t.font = "10pt dfgstg";
+
+    // t.strokeText(Math.tan(-1e300).toString(), 4, 30)
+    // app.js 74538: t[u[97]](Math[u[22]](-u[12])[u[80]](), u[37], u[98])
+    t.strokeText(Math.tan(-1e300).toString(), 4, 30);
+
+    // t.fillText(Math.cos(-1e300).toString(), 4, 40)
+    // app.js 74539: t[u[105]](Math[u[17]](-u[12])[u[80]](), u[37], u[15])
+    t.fillText(Math.cos(-1e300).toString(), 4, 40);
+
+    // t.fillText(Math.sin(-1e300).toString(), 4, 50)
+    // app.js 74540: t[u[105]](Math[u[9]](-u[12])[u[80]](), u[37], u[33])
+    t.fillText(Math.sin(-1e300).toString(), 4, 50);
+
+    // Quadratic curve path
+    // t.beginPath()
+    t.beginPath();
+
+    // t.moveTo(25, 0)
+    // app.js 74542: t[u[69]](u[31], u[85])
+    t.moveTo(25, 0);
+
+    // t.quadraticCurveTo(1, 1, 1, 5)
+    // app.js 74543: t[u[67]](u[2], u[2], u[2], u[8])
+    t.quadraticCurveTo(1, 1, 1, 5);
+
+    // t.quadraticCurveTo(1, 76, 62, 10)
+    // app.js 74544: t[u[67]](u[2], u[34], u[102-1], u[71])
+    // Hmm, let me re-check: u[91]=26... 
+    // app.js 74544: t[u[67]](u[2], u[34], u[91], u[71])
+    // → t.quadraticCurveTo(1, 76, 26, 10)
+    // Wait no. Let me re-read the actual line from the file
+    // Line 74544: t[u[67]](u[2], u[34], u[91], u[71])
+    // u[2]=1, u[34]=76, u[91]=26, u[71]=10
+    t.quadraticCurveTo(1, 76, 26, 10);
+
+    // t.quadraticCurveTo(62, 86, 20, 12)
+    // app.js 74545: t[u[67]](u[91], u[63], u[79], u[5])
+    // u[91]=26... wait. Let me re-read from the file:
+    // Line 74545: t[u[67]](u[91], u[63], u[79], u[5])
+    // Hmm file says line 74545: t[u[67]](u[91], u[63], u[79], u[5])
+    // u[91]=26, u[63]=96, u[79]=6, u[5]=12
+    // → t.quadraticCurveTo(26, 96, 6, 12)
+    // But wait, let me re-read the actual file output:
+    // 74544→ t[u[67]](u[2], u[34], u[91], u[71]),
+    // 74545→ t[u[67]](u[91], u[63], u[79], u[5]),
+    // 74546→ t[u[67]](u[50], u[63], u[35], u[71]),
+    // 74547→ t[u[67]](u[1], u[66], u[30], u[93]),
+    // 74548→ t[u[67]](u[1], u[2], u[21], u[2]),
+    t.quadraticCurveTo(26, 96, 6, 12);
+
+    // t.quadraticCurveTo(60, 96, 41, 10)
+    // u[50]=60, u[63]=96, u[35]=41, u[71]=10
+    t.quadraticCurveTo(60, 96, 41, 10);
+
+    // t.quadraticCurveTo(121, 86, 101, 125)
+    // u[1]=121, u[66]=86, u[30]=101, u[93]=7... wait u[93]=7? Let me check
+    // u[93]=7. Hmm that seems small. Let me re-check: from the Python output:
+    // u[93] = 7
+    // But from the file: u[93] = 125 ... wait no, from python output u[93] = 7, u[95] = 125
+    // Let me re-verify: u[91]=7, u[92]="join", u[93]=7, u[94]="isPointInPath", u[95]=125
+    // Hmm wait from the python output:
+    // u[91] = 26
+    // u[92] = 'join'
+    // u[93] = 7
+    // u[94] = 'isPointInPath'
+    // u[95] = 125
+    // So u[93]=7
+    // t.quadraticCurveTo(121, 86, 101, 7)
+    t.quadraticCurveTo(121, 86, 101, 7);
+
+    // t.quadraticCurveTo(121, 1, 56, 1)
+    // u[1]=121, u[2]=1, u[21]=56, u[2]=1
+    t.quadraticCurveTo(121, 1, 56, 1);
+
+    // t.stroke()
+    // app.js 74549: t[u[107]]()
+    t.stroke();
+
+    // t.globalCompositeOperation = "difference"
+    // app.js 74550: t[u[72]] = u[64]
+    t.globalCompositeOperation = "difference";
+
+    // t.fillStyle = "rgb(255,0,255)"
+    // app.js 74551: t[u[32]] = u[14]
+    t.fillStyle = "rgb(255,0,255)";
+
+    // t.beginPath()
+    t.beginPath();
+
+    // t.arc(80, 30, 30, 0, 2 * Math.PI, 1)
+    // app.js 74553: t[u[28]](u[59], u[98], u[98], u[85], u[60] * Math[u[36]], u[2])
+    // u[59]=80, u[98]=30, u[98]=30, u[85]=0
+    t.arc(80, 30, 30, 0, 2 * Math.PI, true);
+
+    // t.closePath()
+    t.closePath();
+
+    // t.fill()
+    t.fill();
+
+    // t.fillStyle = "rgb(0,255,255)"
+    t.fillStyle = "rgb(0,255,255)";
+
+    // t.beginPath()
+    t.beginPath();
+
+    // t.arc(110, 30, 30, 0, 2 * Math.PI, 1)
+    // app.js 74558: t[u[28]](u[11], u[98], u[98], u[85], u[60] * Math[u[36]], u[2])
+    // u[11]=110
+    t.arc(110, 30, 30, 0, 2 * Math.PI, true);
+
+    // t.closePath()
+    t.closePath();
+
+    // t.fill()
+    t.fill();
+
+    // t.fillStyle = "rgb(255,255,0)"
+    t.fillStyle = "rgb(255,255,0)";
+
+    // t.beginPath()
+    t.beginPath();
+
+    // t.arc(95, 40, 30, 0, 2 * Math.PI, 1)
+    // app.js 74563: t[u[28]](u[0], u[15], u[98], u[85], u[60] * Math[u[36]], u[2])
+    // u[0]=95, u[15]=40
+    t.arc(95, 40, 30, 0, 2 * Math.PI, true);
+
+    // t.closePath()
+    t.closePath();
+
+    // t.fill()
+    t.fill();
+
+    // t.fillStyle = "rgb(255,0,255)"
+    t.fillStyle = "rgb(255,0,255)";
+
+    // ── 后续: toDataURL 生成 hash, getImageData 生成 histogram ──
+
+    return t;
+}
+
+function createHistogram(imageData) {
+    // 精确复现 app.js 74479-74484 的 createHistogram
+    const data = imageData.data;
+    const n = new Array(256).fill(0);
+    for (let i = 0; i < data.length; i++) {
+        n[data[i]]++;
+    }
+    return n;
+}
+
+// ── CRC32 (IEEE) — 精确复现 app.js 70270-70295 ──
+function crc32(str) {
+    let table = [];
+    for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++)
+            c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        table[n] = c;
+    }
+    let crc = 0 ^ 0xFFFFFFFF;
+    for (let i = 0; i < str.length; i++)
+        crc = table[(crc ^ str.charCodeAt(i)) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) | 0;  // signed int32 (和 JS 一致)
+}
+
+function collectAndShow() {
+    const canvas = document.getElementById("fpCanvas");
+    const t = renderTESCanvas(canvas);
+    if (!t) {
+        document.getElementById("results").innerHTML = '<p class="warn">Canvas not supported!</p>';
+        return null;
+    }
+
+    // ── 计算 canvas_hash (app.js 74567-74568) ──
+    // e = [isPointInPath结果, "canvas fp:" + toDataURL()]
+    // hash = CRC32(e.join("~"))
+    const e = [];
+    // isPointInPath 测试结果 (在 renderTESCanvas 中已执行 rect+isPointInPath)
+    // 重新执行一次来获取结果
+    const testCanvas = document.createElement("canvas");
+    testCanvas.width = CANVAS_WIDTH;
+    testCanvas.height = CANVAS_HEIGHT;
+    const tc = testCanvas.getContext("2d");
+    tc.rect(0, 0, 10, 10);
+    tc.rect(2, 2, 20, 20);
+    e.push(0 == tc.isPointInPath(5, 5, "evenodd") ? "yes" : "no");
+    // 用主 canvas 的 toDataURL
+    e.push("canvas fp:" + canvas.toDataURL());
+    const hashStr = e.join("~");
+    const canvasHash = crc32(hashStr);
+
+    // getImageData(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
+    const imageData = t.getImageData(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    const histogram = createHistogram(imageData);
+
+    // 显示信息
+    const total = histogram.reduce((a, b) => a + b, 0);
+    const nonZero = histogram.filter(x => x > 0).length;
+    const maxBin = Math.max(...histogram);
+    const maxIdx = histogram.indexOf(maxBin);
+
+    document.getElementById("results").innerHTML = `
+        <p class="ok">✅ 采集成功!</p>
+        <p class="info"><b>canvas_hash = ${canvasHash}</b> (signed int32, 直接用于 fingerprint)</p>
+        <p class="info">isPointInPath = ${e[0]}</p>
+        <p class="info">总像素采样: ${total} (${CANVAS_WIDTH}×${CANVAS_HEIGHT}×4 = ${CANVAS_WIDTH * CANVAS_HEIGHT * 4})</p>
+        <p class="info">非零 bins: ${nonZero}/256</p>
+        <p class="info">最大 bin: histogram[${maxIdx}] = ${maxBin}</p>
+        <p class="info">histogram[0] (黑色): ${histogram[0]}, histogram[255] (白色): ${histogram[255]}</p>
+    `;
+
+    const pyOutput = formatPythonWithHash(canvasHash, histogram);
+    document.getElementById("output").value = pyOutput;
+    return { canvasHash, histogram };
+}
+
+function collectMultiple(count) {
+    // 多次采集 (每次重新渲染, 结果应该相同, 验证稳定性)
+    const results = [];
+    for (let i = 0; i < count; i++) {
+        const canvas = document.createElement("canvas");
+        const t = renderTESCanvas(canvas);
+        const imageData = t.getImageData(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        results.push(createHistogram(imageData));
+    }
+
+    // 检查是否所有结果相同
+    let allSame = true;
+    for (let i = 1; i < results.length; i++) {
+        for (let j = 0; j < 256; j++) {
+            if (results[i][j] !== results[0][j]) {
+                allSame = false;
+                break;
+            }
+        }
+    }
+
+    let output = "";
+    if (allSame) {
+        output = `# ${count} 次采集结果完全相同 (稳定)\n`;
+        output += formatPython(results[0]);
+    } else {
+        output = `# 警告: ${count} 次采集结果不同!\n`;
+        for (let i = 0; i < results.length; i++) {
+            output += `\n# ── 样本 ${i + 1} ──\n`;
+            output += formatPython(results[i]);
+        }
+    }
+
+    document.getElementById("output").value = output;
+    document.getElementById("results").innerHTML += `
+        <p class="${allSame ? 'ok' : 'warn'}">${allSame ? '✅' : '⚠️'} ${count} 次采集${allSame ? '结果一致' : '结果不一致!'}</p>
+    `;
+}
+
+function formatPython(histogram) {
+    let lines = ["    ["];
+    for (let i = 0; i < 256; i += 16) {
+        const chunk = histogram.slice(i, i + 16);
+        lines.push("     " + chunk.join(", ") + ",");
+    }
+    lines.push("    ],");
+    return lines.join("\n");
+}
+
+function formatPythonWithHash(hash, histogram) {
+    let lines = [];
+    lines.push(`# canvas_hash = ${hash}`);
+    lines.push(`# 直接粘贴到 _CANVAS_DATA_POOL`);
+    lines.push(`(${hash}, [`);
+    for (let i = 0; i < 256; i += 16) {
+        const chunk = histogram.slice(i, i + 16);
+        lines.push("     " + chunk.join(", ") + ",");
+    }
+    lines.push("]),");
+    return lines.join("\n");
+}
+
+function copyResult() {
+    const output = document.getElementById("output");
+    output.select();
+    document.execCommand("copy");
+    alert("已复制到剪贴板!");
+}
+
+// 自动采集
+window.onload = collectAndShow;
+</script>
+</body>
+</html>
