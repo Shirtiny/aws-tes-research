@@ -50,6 +50,8 @@ tes-plan/
     server.js          Express demo 服务（接收上报、返回风险评估）
     test.js            评分引擎自测（node test.js）
     package.json
+  source/
+    FINGERPRINT_GENERATION.md  真机如何生成每个指纹字段（检测对照基准）
 ```
 
 ## 快速开始
